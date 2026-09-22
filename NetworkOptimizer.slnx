@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="NetworkOptimizer.Tests/NetworkOptimizer.Tests.csproj" />
+  <Project Path="NetworkOptimizer/NetworkOptimizer.csproj" />
+  <Project Path="NetworkOptimizer.Updater/NetworkOptimizer.Updater.csproj" />
+</Solution>
