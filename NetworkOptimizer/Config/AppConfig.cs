@@ -8,7 +8,7 @@ public static class AppConfig
 {
     public const string ProductName = "NetworkOptimizer";
     public const string ProductSlug = "network-optimizer";
-    public const string AppVersion = "1.0.0";
+    public const string AppVersion = "1.1.0";
 
     /// <summary>
     /// URL base del servidor oficial de licencias.
@@ -26,10 +26,16 @@ public static class AppConfig
     public const int LicenseTimeoutSeconds = 10;
 
     /// <summary>
-    /// URL remota del manifiesto de actualización (latest.json).
-    /// PLACEHOLDER: Reemplazar con la URL HTTPS de distribución en producción (ej. GitHub Releases, CDN, AWS S3).
+    /// Propietario y repositorio oficial en GitHub para distribución de releases.
     /// </summary>
-    public const string UpdateManifestUrl = "https://tu-hosting.com/NetworkOptimizer/latest.json";
+    public const string GitHubOwner = "ezearocha0-stack";
+    public const string GitHubRepository = "NetworkOptimizer";
+    public const string GitHubReleasesUrl = "https://github.com/ezearocha0-stack/NetworkOptimizer/releases";
+
+    /// <summary>
+    /// URL remota oficial del manifiesto de actualización (latest.json) en GitHub (sin autenticación requerida).
+    /// </summary>
+    public const string UpdateManifestUrl = "https://raw.githubusercontent.com/ezearocha0-stack/NetworkOptimizer/main/latest.json";
 
     /// <summary>
     /// Nombre del archivo ejecutable del actualizador auxiliar.

@@ -196,11 +196,11 @@ public class UpdateSystemTests
     [Fact]
     public async Task CheckForUpdate_WhenRemoteIsEqual_ReportsAlreadyUpdated()
     {
-        // AppConfig.AppVersion is "1.0.0"
-        string manifestJson = """
+        string currentVer = Config.AppConfig.AppVersion;
+        string manifestJson = $$"""
         {
-            "version": "1.0.0",
-            "downloadUrl": "https://test-server.com/NetworkOptimizer/NetworkOptimizer-1.0.0.exe",
+            "version": "{{currentVer}}",
+            "downloadUrl": "https://test-server.com/NetworkOptimizer/NetworkOptimizer-{{currentVer}}.exe",
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         }
         """;
@@ -386,6 +386,107 @@ public class UpdateSystemTests
         {
             Assert.False(File.Exists(result.DownloadedFilePath), "Corrupted download file MUST be deleted!");
         }
+    }
+
+    // ==========================================
+    // 6. INTEGRACIÓN GITHUB RELEASES Y LICENCIA
+    // ==========================================
+
+    [Fact]
+    public void AppConfig_UpdateManifestUrl_ConfiguredWithOfficialGitHubRepository()
+    {
+        string url = Config.AppConfig.UpdateManifestUrl;
+
+        Assert.Equal("https://raw.githubusercontent.com/ezearocha0-stack/NetworkOptimizer/main/latest.json", url);
+
+        var uri = new Uri(url);
+        Assert.Equal(Uri.UriSchemeHttps, uri.Scheme);
+        Assert.Equal("raw.githubusercontent.com", uri.Host);
+        Assert.Equal("/ezearocha0-stack/NetworkOptimizer/main/latest.json", uri.AbsolutePath);
+    }
+
+    [Fact]
+    public void GitHubReleaseManifest_ValidReleaseStructure_ParsesAndValidatesSuccessfully()
+    {
+        string validSha = "a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e";
+        string json = $$"""
+        {
+            "version": "1.1.0",
+            "downloadUrl": "https://github.com/ezearocha0-stack/NetworkOptimizer/releases/download/v1.1.0/NetworkOptimizer.exe",
+            "sha256": "{{validSha}}"
+        }
+        """;
+
+        var manifest = UpdateService.ParseManifest(json);
+
+        Assert.NotNull(manifest);
+        Assert.Equal("1.1.0", manifest.Version);
+        Assert.Equal("https://github.com/ezearocha0-stack/NetworkOptimizer/releases/download/v1.1.0/NetworkOptimizer.exe", manifest.DownloadUrl);
+        Assert.Equal(validSha, manifest.Sha256);
+
+        // Verificar que 1.1.0 es detectado como versión superior a la versión base 1.0.0
+        Assert.True(UpdateVersionComparator.IsNewerVersion("1.0.0", manifest.Version));
+    }
+
+    [Fact]
+    public async Task CheckForUpdate_WhenGitHubReturns404ForLatestJson_AppContinuesSafely()
+    {
+        var fakeHandler = new MockHttpMessageHandler((req) =>
+        {
+            Assert.Equal("https://raw.githubusercontent.com/ezearocha0-stack/NetworkOptimizer/main/latest.json", req.RequestUri?.AbsoluteUri);
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        using var client = new HttpClient(fakeHandler);
+        var updateService = new UpdateService(client);
+
+        var result = await updateService.CheckForUpdateAsync();
+
+        Assert.False(result.IsAvailable);
+        Assert.Null(result.Manifest);
+        Assert.Contains("404", result.Message);
+    }
+
+    [Fact]
+    public async Task CheckForUpdate_WhenGitHubIsUnavailableOrOffline_AppContinuesSafely()
+    {
+        var fakeHandler = new MockHttpMessageHandler((req) =>
+        {
+            throw new HttpRequestException("GitHub DNS resolution failure or network down");
+        });
+
+        using var client = new HttpClient(fakeHandler);
+        var updateService = new UpdateService(client);
+
+        var result = await updateService.CheckForUpdateAsync();
+
+        Assert.False(result.IsAvailable);
+        Assert.Null(result.Manifest);
+        Assert.Contains("sin conexión", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task LicensePreservation_UpdateCheckDoesNotAlterLicenseState()
+    {
+        // Verificar que el estado de la licencia se mantenga intacto antes y después de una comprobación de actualización
+        var licenseService = new Licensing.LicenseService();
+        bool initialLicensed = licenseService.IsLicensed;
+        string initialStatus = licenseService.GetCachedStatus().StatusText;
+
+        var fakeHandler = new MockHttpMessageHandler((req) =>
+        {
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        using var client = new HttpClient(fakeHandler);
+        var updateService = new UpdateService(client);
+
+        await updateService.CheckForUpdateAsync();
+
+        // El estado y las propiedades de licencia deben ser exactamente iguales
+        Assert.Equal(initialLicensed, licenseService.IsLicensed);
+        Assert.Equal(initialStatus, licenseService.GetCachedStatus().StatusText);
+        Assert.Equal("network-optimizer", Config.AppConfig.ProductSlug);
     }
 
     // Helper mock HTTP handler
